@@ -1,0 +1,112 @@
+<div class="contenedor-detalle">
+
+  <!-- ENCABEZADO -->
+  <div class="encabezado">
+
+    <div>
+      <h1>Detalle trabajador</h1>
+      <p>Antecedentes personales y laborales del trabajador</p>
+    </div>
+
+    <button
+      type="button"
+      class="btn-volver"
+      [routerLink]="['/trabajadores']"
+      [queryParams]="{ companyId: companyId }">
+      Volver
+    </button>
+
+  </div>
+
+  <!-- CARGANDO -->
+  <div
+    *ngIf="cargando"
+    class="estado-mensaje">
+    Cargando trabajador...
+  </div>
+
+  <!-- ERROR -->
+  <div
+    *ngIf="!cargando && errorMessage"
+    class="estado-mensaje error">
+    {{ errorMessage }}
+  </div>
+
+  <!-- DETALLE -->
+  <div
+    *ngIf="!cargando && trabajador"
+    class="tarjeta-detalle">
+
+    <div class="titulo-seccion">
+      <h2>
+        {{ trabajador.nombres }}
+        {{ trabajador.apellido_paterno }}
+        {{ trabajador.apellido_materno }}
+      </h2>
+
+      <span
+        class="estado"
+        [class.activo]="trabajador.estado == 1"
+        [class.inactivo]="trabajador.estado != 1">
+        {{ trabajador.estado == 1 ? 'Activo' : 'Inactivo' }}
+      </span>
+    </div>
+
+    <div class="grid-datos">
+
+      <div class="campo">
+        <span class="etiqueta">RUT</span>
+        <span class="valor">
+          {{ trabajador.rut || '-' }}
+        </span>
+      </div>
+
+      <div class="campo">
+        <span class="etiqueta">Cargo</span>
+        <span class="valor">
+          {{ trabajador.cargo || '-' }}
+        </span>
+      </div>
+
+      <div class="campo">
+        <span class="etiqueta">Tipo de contrato</span>
+        <span class="valor">
+          {{ trabajador.tipo_contrato || '-' }}
+        </span>
+      </div>
+
+      <div class="campo">
+        <span class="etiqueta">Sueldo base</span>
+        <span class="valor">
+          {{
+            trabajador.sueldo_base
+              ? (trabajador.sueldo_base
+                  | currency:'CLP':'symbol-narrow':'1.0-0')
+              : '-'
+          }}
+        </span>
+      </div>
+
+      <div class="campo">
+        <span class="etiqueta">AFP</span>
+        <span class="valor">
+          {{ trabajador.afp_nombre || '-' }}
+        </span>
+      </div>
+
+      <div class="campo">
+        <span class="etiqueta">Sistema de salud</span>
+        <span class="valor">
+          {{
+            trabajador.salud_institucion
+            || trabajador.salud_tipo
+            || '-'
+          }}
+        </span>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>

@@ -1,0 +1,200 @@
+<div class="contenedor-liquidaciones">
+
+  <!-- ENCABEZADO -->
+  <div class="encabezado">
+
+    <div>
+      <h1>Liquidaciones</h1>
+      <p>Gestión de liquidaciones de sueldo</p>
+    </div>
+
+    <button
+      class="btn-nueva"
+      [disabled]="!tieneEmpresaSeleccionada()"
+      [routerLink]="['/liquidaciones/nueva']"
+      [queryParams]="{ companyId: empresaSeleccionada }">
+      Nueva liquidación
+    </button>
+
+  </div>
+
+
+  <!-- MENSAJE DE ERROR -->
+  <div
+    *ngIf="errorMessage"
+    class="mensaje-error">
+    {{ errorMessage }}
+  </div>
+
+
+  <!-- FILTROS -->
+  <div class="filtros">
+
+    <!-- EMPRESA -->
+    <div class="campo">
+      <label>Empresa</label>
+
+      <select
+        [(ngModel)]="empresaSeleccionada"
+        (change)="cambiarEmpresa()">
+
+        <option value="">
+          Seleccione una empresa
+        </option>
+
+        <option
+          *ngFor="let empresa of empresas"
+          [value]="empresa.id">
+          {{ empresa.name }}
+        </option>
+
+      </select>
+
+      <span
+        *ngIf="cargandoEmpresas"
+        class="mensaje-cargando">
+        Cargando empresas...
+      </span>
+    </div>
+
+
+    <!-- MES -->
+    <div class="campo">
+      <label>Mes</label>
+
+      <select
+        [(ngModel)]="mesSeleccionado"
+        (change)="cambiarPeriodo()">
+
+        <option
+          *ngFor="let mes of meses"
+          [ngValue]="mes.valor">
+          {{ mes.nombre }}
+        </option>
+
+      </select>
+    </div>
+
+
+    <!-- AÑO -->
+    <div class="campo">
+      <label>Año</label>
+
+      <select
+        [(ngModel)]="anioSeleccionado"
+        (change)="cambiarPeriodo()">
+
+        <option
+          *ngFor="let anio of anios"
+          [ngValue]="anio">
+          {{ anio }}
+        </option>
+
+      </select>
+    </div>
+
+  </div>
+
+
+  <!-- CARGANDO LIQUIDACIONES -->
+  <div
+    *ngIf="cargandoLiquidaciones"
+    class="mensaje-cargando">
+    Cargando liquidaciones...
+  </div>
+
+
+  <!-- TABLA -->
+  <div class="tabla-contenedor">
+
+    <table>
+
+      <thead>
+        <tr>
+          <th>Trabajador</th>
+          <th>RUT</th>
+          <th>Periodo</th>
+          <th>Total haberes</th>
+          <th>Total descuentos</th>
+          <th>Líquido</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+
+      <tbody>
+
+        <!-- LIQUIDACIONES -->
+        <tr *ngFor="let liquidacion of liquidaciones">
+
+          <td>
+            {{ liquidacion.trabajador }}
+          </td>
+
+          <td>
+            {{ liquidacion.rut }}
+          </td>
+
+          <td>
+            {{ obtenerNombreMes(liquidacion.mes) }}
+            {{ liquidacion.anio }}
+          </td>
+
+          <td>
+            {{ liquidacion.total_haberes | currency:'CLP':'symbol-narrow':'1.0-0' }}
+          </td>
+
+          <td>
+            {{ liquidacion.total_descuentos | currency:'CLP':'symbol-narrow':'1.0-0' }}
+          </td>
+
+          <td>
+            {{ liquidacion.liquido | currency:'CLP':'symbol-narrow':'1.0-0' }}
+          </td>
+
+          <td>
+            {{ liquidacion.estado }}
+          </td>
+
+          <td class="acciones">
+
+            <button
+              class="btn-ver">
+              Ver
+            </button>
+
+          </td>
+
+        </tr>
+
+
+        <!-- SIN DATOS -->
+        <tr
+          *ngIf="
+            !cargandoLiquidaciones &&
+            liquidaciones.length === 0
+          ">
+
+          <td
+            colspan="8"
+            class="sin-datos">
+
+            <span *ngIf="!empresaSeleccionada">
+              Seleccione una empresa para ver sus liquidaciones.
+            </span>
+
+            <span *ngIf="empresaSeleccionada">
+              No hay liquidaciones registradas para este período.
+            </span>
+
+          </td>
+
+        </tr>
+
+      </tbody>
+
+    </table>
+
+  </div>
+
+</div>

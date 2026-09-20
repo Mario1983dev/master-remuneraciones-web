@@ -1,0 +1,43 @@
+:host { display: block; }
+.contenedor { padding: 32px; min-height: 100vh; background: #f5f5f5; color: #222; }
+.encabezado { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
+h1 { margin: 0; font-size: 32px; }
+h2 { margin: 0 0 20px; font-size: 22px; }
+h3 { margin: 24px 0 12px; font-size: 18px; }
+.encabezado p { margin: 8px 0 0; color: #555; }
+.formulario, .resumen-liquidacion { padding: 24px; border: 1px solid #e2e2e2; border-radius: 14px; background: white; min-width: 0; }
+.detalle-liquidacion { display: grid; grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); align-items: start; gap: 24px; margin-top: 24px; }
+.fila, .datos-ficha { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; }
+.campo { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+label { font-weight: 600; }
+input, select { box-sizing: border-box; width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid #aaa; border-radius: 8px; font: inherit; background: white; color: inherit; }
+button, .btn-volver { padding: 12px 20px; border: 0; border-radius: 8px; font: inherit; cursor: pointer; }
+.btn-volver { background: #e5e5e5; color: #222; text-decoration: none; }
+.btn-continuar { background: #111; color: white; }
+button:disabled { opacity: .5; cursor: default; }
+input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid #326b9f; outline-offset: 3px; }
+.acciones { display: flex; justify-content: flex-end; margin-top: 20px; }
+.antecedentes { padding: 16px; margin-bottom: 24px; border-radius: 8px; background: #f7f7f7; }
+.identificacion { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 0 0 16px; }
+dl { margin: 0; }
+dd { margin: 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.datos-ficha dt { color: #555; font-size: 14px; margin-bottom: 4px; }
+.monto-proporcional { padding: 10px 0; }
+.opcionales { margin-top: 24px; border-top: 1px solid #ddd; border-bottom: 1px solid #ddd; padding: 16px 0; }
+summary { cursor: pointer; font-weight: 600; }
+.opcionales[open] summary { margin-bottom: 20px; }
+.nota-calculo { color: #555; font-size: 14px; line-height: 1.5; }
+.antecedentes .nota-calculo { margin-bottom: 0; }
+.resumen-liquidacion dl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; padding: 10px 0; }
+.total { border-top: 1px solid #ddd; margin-top: 8px; font-weight: 700; }
+.pendiente { color: #805400; }
+.resultado-estimado { margin-top: 20px; padding: 8px 16px; background: #e9f1ec; border-radius: 8px; font-size: 20px; font-weight: 700; }
+.advertencia { padding: 12px; margin: 16px 0 0; background: #fff5df; color: #654600; border-radius: 8px; line-height: 1.5; font-size: 14px; }
+.mensaje-error { color: #942323; }
+@media (max-width: 1000px) { .detalle-liquidacion { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px) {
+  .contenedor { padding: 16px; }
+  .formulario, .resumen-liquidacion { padding: 16px; }
+  .fila, .datos-ficha { grid-template-columns: minmax(0, 1fr); }
+  h1 { font-size: 26px; }
+}

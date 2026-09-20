@@ -1,0 +1,189 @@
+<div class="contenedor-nuevo-trabajador">
+
+  <div class="encabezado">
+    <div>
+      <h1>Nuevo trabajador</h1>
+      <p>Registro de antecedentes laborales</p>
+    </div>
+
+    <button
+      class="btn-volver"
+      routerLink="/trabajadores">
+      Volver
+    </button>
+  </div>
+
+  <div class="formulario">
+
+    <div class="seccion">
+      <h2>Datos personales</h2>
+
+      <div class="grid">
+
+        <div class="campo">
+          <label>RUT</label>
+          <input
+            type="text"
+            [(ngModel)]="trabajador.rut"
+            placeholder="12.345.678-9">
+        </div>
+
+        <div class="campo">
+          <label>Nombres</label>
+          <input
+            type="text"
+            [(ngModel)]="trabajador.nombres">
+        </div>
+
+        <div class="campo">
+          <label>Apellido paterno</label>
+          <input
+            type="text"
+            [(ngModel)]="trabajador.apellido_paterno">
+        </div>
+
+        <div class="campo">
+          <label>Apellido materno</label>
+          <input
+            type="text"
+            [(ngModel)]="trabajador.apellido_materno">
+        </div>
+
+      </div>
+    </div>
+
+    <div class="seccion">
+      <h2>Antecedentes laborales</h2>
+
+      <div class="grid">
+
+        <div class="campo">
+          <label>Fecha de ingreso</label>
+          <input
+            type="date"
+            [(ngModel)]="trabajador.fecha_ingreso">
+        </div>
+
+        <div class="campo">
+          <label>Fecha de término</label>
+          <input
+            type="date"
+            [(ngModel)]="trabajador.fecha_termino">
+        </div>
+
+        <div class="campo">
+          <label>Tipo de contrato</label>
+          <select [(ngModel)]="trabajador.tipo_contrato">
+            <option value="">Seleccione tipo de contrato</option>
+            <option value="INDEFINIDO">Indefinido</option>
+            <option value="PLAZO_FIJO">Plazo fijo</option>
+            <option value="OBRA_FAENA">Obra o faena</option>
+          </select>
+        </div>
+
+        <div class="campo">
+          <label>Cargo</label>
+          <input
+            type="text"
+            [(ngModel)]="trabajador.cargo">
+        </div>
+
+        <div class="campo">
+          <label>Sueldo base</label>
+          <input
+            type="number"
+            min="0"
+            [(ngModel)]="trabajador.sueldo_base">
+        </div>
+
+      </div>
+    </div>
+
+    <div class="seccion">
+      <h2>Previsión</h2>
+
+      <div class="grid">
+
+        <div class="campo">
+          <label>AFP</label>
+          <select [(ngModel)]="trabajador.afp_nombre">
+            <option value="">Seleccione AFP</option>
+            <option value="CAPITAL">Capital</option>
+            <option value="CUPRUM">Cuprum</option>
+            <option value="HABITAT">Habitat</option>
+            <option value="MODELO">Modelo</option>
+            <option value="PLANVITAL">PlanVital</option>
+            <option value="PROVIDA">Provida</option>
+            <option value="UNO">Uno</option>
+          </select>
+        </div>
+
+        <div class="campo">
+          <label>Sistema de salud</label>
+          <select [(ngModel)]="trabajador.salud_tipo"
+            (ngModelChange)="cambiarTipoSalud()">
+            <option value="">Seleccione sistema</option>
+            <option value="FONASA">Fonasa</option>
+            <option value="ISAPRE">Isapre</option>
+          </select>
+        </div>
+
+        <div class="campo">
+          <label>Institución de salud</label>
+          <input
+            type="text"
+            [(ngModel)]="trabajador.salud_institucion"
+            [disabled]="trabajador.salud_tipo === 'FONASA'"
+            placeholder="Fonasa o nombre de Isapre">
+        </div>
+
+        <div class="campo">
+          <label>Tipo de valor salud</label>
+          <select [(ngModel)]="trabajador.salud_tipo_valor"
+            [disabled]="trabajador.salud_tipo === 'FONASA'">
+            <option value="">Seleccione tipo</option>
+            <option value="PORCENTAJE">Porcentaje</option>
+            <option value="UF">UF</option>
+            <option value="PESOS">Pesos</option>
+          </select>
+        </div>
+
+        <div class="campo">
+          <label>Valor salud</label>
+          <input
+            type="number"
+            min="0"
+            step="0.01"
+            [(ngModel)]="trabajador.salud_valor"
+            [disabled]="trabajador.salud_tipo === 'FONASA'">
+        </div>
+
+      </div>
+    </div>
+    <div
+  *ngIf="errorMessage"
+  class="mensaje-error">
+  {{ errorMessage }}
+</div>
+
+    <div class="acciones">
+      <button
+        class="btn-cancelar"
+        routerLink="/trabajadores">
+        Cancelar
+      </button>
+
+     <button
+  class="btn-guardar"
+  type="button"
+  (click)="guardar()"
+  [disabled]="guardando || !companyId">
+
+  {{ guardando ? 'Guardando...' : 'Guardar trabajador' }}
+
+</button>
+    </div>
+
+  </div>
+
+</div>

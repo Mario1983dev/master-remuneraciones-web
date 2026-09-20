@@ -1,0 +1,34 @@
+<div class="dashboard-container">
+
+  <div class="dashboard-header">
+    <h1>SoluPrime Remuneraciones</h1>
+    <p>Panel principal</p>
+  </div>
+
+  <div class="dashboard-grid">
+    @if (mostrarParametros()) {
+      <a class="dashboard-card" routerLink="/parametros-remuneraciones">
+        <span class="icon" aria-hidden="true">⚙</span>
+        <h2>Parámetros de remuneraciones</h2>
+        <p>Administra parámetros por período y versión</p>
+      </a>
+    }
+
+    @if (mostrarOficina()) {
+    <a class="dashboard-card" routerLink="/trabajadores">
+      <span class="icon">👷</span>
+      <h2>Trabajadores</h2>
+      <p>Gestión de trabajadores y antecedentes laborales</p>
+    </a>
+
+    <a class="dashboard-card" routerLink="/liquidaciones">
+      <span class="icon">📄</span>
+      <h2>Liquidaciones</h2>
+      <p>Gestión de liquidaciones de sueldo</p>
+    </a>
+    }
+
+
+  </div>
+
+</div>

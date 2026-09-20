@@ -1,0 +1,106 @@
+<div class="contenedor">
+  <header><div><h1>Parámetros de remuneraciones</h1><p>Administra los parámetros de cada período y conserva sus versiones.</p></div><a routerLink="/dashboard" class="secundario">Volver a Inicio</a></header>
+  @if (verificando()) { <p role="status">Verificando acceso…</p> }
+  @else if (!autorizado()) { <p role="alert" class="error">Esta pantalla está disponible solo para MASTER con acceso a Remuneraciones.</p> }
+  @else {
+    <section class="panel" aria-label="Período y versión">
+      <div class="fila">
+        <div class="campo"><label for="anio">Año</label><input id="anio" type="number" min="1000" max="9999" step="1" [(ngModel)]="anio" (change)="cargar()" [disabled]="ocupado()"></div>
+        <div class="campo"><label for="mes">Mes</label><select id="mes" [(ngModel)]="mes" (ngModelChange)="cargar()" [disabled]="ocupado()">@for (nombre of meses; track $index) { <option [ngValue]="$index + 1">{{ nombre }}</option> }</select></div>
+        <div class="campo"><label for="version">Versión</label><select id="version" #selectorVersion [ngModel]="version" (ngModelChange)="cambiarVersion($event, selectorVersion)" [disabled]="ocupado() || !versiones().length">
+          @if (!versiones().length) { <option [ngValue]="0">Sin versiones</option> }
+          @for (item of versiones(); track item.parametros.version) { <option [ngValue]="item.parametros.version">Versión {{ item.parametros.version }} — {{ item.parametros.estado }}</option> }
+        </select></div>
+      </div>
+      <button type="button" class="secundario recargar" (click)="cargar()" [disabled]="ocupado()">Recargar período</button>
+    </section>
+    @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+    @if (mensaje()) { <p class="exito" role="status">{{ mensaje() }}</p> }
+    @if (ocupado()) { <p role="status">Procesando…</p> }
+    @if (cargado() && !versiones().length) {
+      <section class="panel"><h2>Este período no tiene versiones</h2><p>Crea un borrador con AFP, UTM, tope y reglas de cesantía y tramos IUSC del último período anterior publicado. Revisa los valores copiados antes de publicar; no se actualizan automáticamente a valores oficiales del nuevo mes. Si no hay origen, comienza sin esos datos.</p><button type="button" (click)="crear()" [disabled]="ocupado()">Crear borrador</button></section>
+    }
+    @if (seleccionada(); as actual) {
+      <section class="panel" [attr.aria-busy]="ocupado()">
+        <div class="titulo-version"><h2>{{ meses[mes - 1] }} {{ anio }} · Versión {{ version }}</h2><span class="estado" [class.publicado]="actual.parametros.estado === 'PUBLICADO'">{{ actual.parametros.estado }}</span></div>
+        @if (actual.parametros.estado === 'PUBLICADO') { <p>Versión publicada de solo lectura. Crea una corrección para modificar sus valores.</p> }
+        @else { <p>Puedes guardar campos vacíos como pendientes. Para publicar, completa los parámetros generales, las comisiones de las AFP vigentes, las reglas de cesantía y la tabla IUSC.</p> }
+        <p id="ayuda-decimales" class="ayuda">Usa coma o punto decimal, hasta seis decimales y sin separadores de miles. Las tasas se expresan en porcentaje.</p>
+        <fieldset [disabled]="ocupado() || actual.parametros.estado === 'PUBLICADO'">
+          <legend>Parámetros del período</legend>
+          <div class="fila parametros">
+            @for (campo of campos; track campo.clave) {
+              <div class="campo"><label [for]="campo.clave">{{ campo.etiqueta }}</label><input [id]="campo.clave" type="text" inputmode="decimal" autocomplete="off" [(ngModel)]="formulario[campo.clave]" (ngModelChange)="editado()" aria-describedby="ayuda-decimales"></div>
+            }
+            <div class="campo"><label for="uf_fecha">Fecha UF</label><input id="uf_fecha" type="date" min="1000-01-01" max="9999-12-31" [(ngModel)]="formulario.uf_fecha" (ngModelChange)="editado()"></div>
+          </div>
+          <h3>Comisiones AFP</h3>
+          <div class="afp-lista">
+            @for (afp of formulario.afp; track afp; let i = $index) {
+              <div class="afp-fila" [class.no-vigente]="!afp.vigente">
+                <div class="campo"><label [for]="'afp-codigo-' + i">Código</label><input [id]="'afp-codigo-' + i" type="text" maxlength="30" [readonly]="!!actual.afp[i]" [(ngModel)]="afp.afp_codigo" (ngModelChange)="editado()"></div>
+                <div class="campo"><label [for]="'afp-nombre-' + i">Nombre</label><input [id]="'afp-nombre-' + i" type="text" maxlength="100" [(ngModel)]="afp.afp_nombre" (ngModelChange)="editado()"></div>
+                <div class="campo"><label [for]="'afp-comision-' + i">Comisión (%)</label><input [id]="'afp-comision-' + i" type="text" inputmode="decimal" autocomplete="off" [(ngModel)]="afp.comision_pct" (ngModelChange)="editado()" aria-describedby="ayuda-decimales">@if (afp.comision_pct === null || afp.comision_pct === undefined || (afp.comision_pct + '').trim() === '') { <span class="pendiente">Tasa pendiente</span> }</div>
+                <div class="vigencia"><span>{{ afp.vigente ? 'Vigente' : 'No vigente' }}</span>
+                @if (actual.parametros.estado === 'BORRADOR') { <button type="button" class="secundario" (click)="cambiarVigenciaAfp(i)" [disabled]="ocupado()" [attr.aria-label]="(afp.vigente ? 'Dejar no vigente AFP ' : 'Reactivar AFP ') + (afp.afp_nombre || (i + 1))">{{ afp.vigente ? 'Dejar no vigente' : 'Reactivar' }}</button> }
+                </div>
+              </div>
+            } @empty { <p>No hay AFP registradas en esta versión.</p> }
+          </div>
+          @if (actual.parametros.estado === 'BORRADOR') {
+            <button type="button" class="secundario" (click)="agregarAfp()" [disabled]="ocupado()">Agregar AFP</button>
+            <p class="ayuda">Los cambios en la lista se aplican al guardar este borrador. Las AFP no vigentes se conservan. Los códigos deben ser únicos; se guardan en mayúsculas.</p>
+          }
+          <h3>Cesantía e impuesto único</h3>
+          <div class="fila">
+            <div class="campo"><label for="utm_valor_clp">Valor UTM (CLP)</label><input id="utm_valor_clp" type="text" inputmode="decimal" [(ngModel)]="formulario.utm_valor_clp" (ngModelChange)="editado()"></div>
+            <div class="campo"><label for="tope_cesantia_uf">Tope de cesantía (UF)</label><input id="tope_cesantia_uf" type="text" inputmode="decimal" [(ngModel)]="formulario.tope_cesantia_uf" (ngModelChange)="editado()"></div>
+          </div>
+          <h3>Reglas de seguro de cesantía</h3>
+          <p class="ayuda">Indica tipo de contrato y código de regla. Tasas en porcentaje: por ejemplo, 0,6. Cero indica que no corresponde aporte; vacío queda pendiente. Los aportes del empleador no se descuentan al trabajador.</p>
+          <datalist id="tipos-contrato"><option value="INDEFINIDO"></option><option value="PLAZO_FIJO"></option><option value="OBRA_FAENA"></option></datalist>
+          @for (regla of formulario.cesantia; track regla; let i = $index) {
+            <div class="panel">
+              <div class="fila">
+                <div class="campo"><label [for]="'contrato-' + i">Tipo de contrato</label><input [id]="'contrato-' + i" list="tipos-contrato" maxlength="30" [(ngModel)]="regla.tipo_contrato" (ngModelChange)="editado()"></div>
+                <div class="campo"><label [for]="'regla-' + i">Código de regla</label><input [id]="'regla-' + i" maxlength="60" [(ngModel)]="regla.regla_codigo" (ngModelChange)="editado()"></div>
+                @for (campo of camposCesantia; track campo.clave) {
+                  <div class="campo"><label [for]="campo.clave + i">{{ campo.etiqueta }}</label><input [id]="campo.clave + i" type="text" inputmode="decimal" [(ngModel)]="regla[campo.clave]" (ngModelChange)="editado()"></div>
+                }
+              </div>
+              @if (actual.parametros.estado === 'BORRADOR') { <button type="button" class="secundario" (click)="quitarDetalle('cesantia', i)">Quitar regla {{ i + 1 }}</button> }
+            </div>
+          } @empty { <p>No hay reglas de cesantía en esta versión.</p> }
+          @if (actual.parametros.estado === 'BORRADOR') { <button type="button" class="secundario" (click)="agregarRegla()">Agregar regla</button> }
+          <h3>Tramos IUSC mensuales</h3>
+          <p class="ayuda">Rangos y rebaja en UTM, hasta seis decimales. Factor entre 0 y 1, hasta nueve decimales (ejemplo: 0,04, no 4). Inicia en 0 y continúa sin huecos ni solapamientos. Deja Hasta UTM vacío solo en el último tramo para indicar sin límite. En borrador puedes dejar otros valores pendientes.</p>
+          @for (tramo of formulario.iusc_tramos; track tramo; let i = $index) {
+            <div class="panel">
+              <div class="fila">
+                <div class="campo"><label [for]="'tramo-' + i">Número de tramo</label><input [id]="'tramo-' + i" type="number" min="1" max="65535" step="1" [(ngModel)]="tramo.numero_tramo" (ngModelChange)="editado()"></div>
+                @for (campo of camposIusc; track campo.clave) {
+                  <div class="campo"><label [for]="campo.clave + i">{{ campo.etiqueta }}</label><input [id]="campo.clave + i" type="text" inputmode="decimal" [(ngModel)]="tramo[campo.clave]" (ngModelChange)="editado()"></div>
+                }
+              </div>
+              @if (actual.parametros.estado === 'BORRADOR') { <button type="button" class="secundario" (click)="quitarDetalle('iusc_tramos', i)">Quitar tramo {{ tramo.numero_tramo }}</button> }
+            </div>
+          } @empty { <p>No hay tramos IUSC en esta versión.</p> }
+          @if (actual.parametros.estado === 'BORRADOR') { <button type="button" class="secundario" (click)="agregarTramo()">Agregar tramo</button> }
+        </fieldset>
+        <div class="acciones">
+          @if (actual.parametros.estado === 'BORRADOR') {
+            <button type="button" (click)="guardar()" [disabled]="ocupado()">Guardar borrador</button>
+            <button type="button" class="secundario" (click)="prepararPublicacion()" [disabled]="ocupado() || cambios()">Publicar</button>
+          } @else { <button type="button" (click)="corregir()" [disabled]="ocupado()">Crear corrección</button> }
+        </div>
+        @if (cambios()) { <p class="ayuda">Hay cambios sin guardar. Guarda el borrador antes de publicar.</p> }
+        @if (confirmarPublicacion()) {
+          <div class="confirmacion" role="region" aria-label="Confirmar publicación">
+            <p>¿Publicar la versión {{ version }} de {{ meses[mes - 1] }} {{ anio }}? Sus valores quedarán en modo lectura.</p>
+            <div class="acciones"><button type="button" (click)="publicar()" [disabled]="ocupado()">Confirmar publicación</button><button type="button" class="secundario" (click)="confirmarPublicacion.set(false)" [disabled]="ocupado()">Cancelar</button></div>
+          </div>
+        }
+      </section>
+    }
+  }
+</div>

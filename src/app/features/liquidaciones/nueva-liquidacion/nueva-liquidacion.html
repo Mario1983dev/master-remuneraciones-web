@@ -1,0 +1,159 @@
+<div class="contenedor">
+  <header class="encabezado">
+    <div><h1>Nueva liquidación</h1><p>Datos del mes y estimación de sueldo</p></div>
+    <a class="btn-volver" routerLink="/liquidaciones">Volver</a>
+  </header>
+
+  <p *ngIf="errorMessage" class="mensaje-error" role="alert">{{ errorMessage }}</p>
+
+  <section class="formulario" aria-label="Empresa, trabajador y período">
+    <div class="fila">
+      <div class="campo">
+        <label for="empresa">Empresa</label>
+        <select id="empresa" [(ngModel)]="empresaSeleccionada" (change)="cambiarEmpresa()" [disabled]="cargandoEmpresas">
+          <option value="">Seleccione empresa</option>
+          <option *ngFor="let empresa of empresas" [value]="empresa.id">{{ empresa.name }}</option>
+        </select>
+        <span *ngIf="cargandoEmpresas" role="status">Cargando empresas...</span>
+      </div>
+      <div class="campo">
+        <label for="trabajador">Trabajador</label>
+        <select id="trabajador" [(ngModel)]="trabajadorSeleccionado" (ngModelChange)="cambiarTrabajador()" [disabled]="!empresaSeleccionada || cargandoTrabajadores">
+          <option value="">Seleccione trabajador</option>
+          <option *ngFor="let persona of trabajadores" [value]="persona.id">{{ persona.nombres }} {{ persona.apellido_paterno }} {{ persona.apellido_materno }}</option>
+        </select>
+        <span *ngIf="cargandoTrabajadores" role="status">Cargando trabajadores...</span>
+        <span *ngIf="empresaSeleccionada && !cargandoTrabajadores && trabajadores.length === 0 && !errorMessage">Esta empresa no tiene trabajadores registrados.</span>
+      </div>
+      <div class="campo">
+        <label for="mes">Mes</label>
+        <select id="mes" [(ngModel)]="mesSeleccionado" (ngModelChange)="cambiarTrabajador()"><option *ngFor="let mes of meses" [ngValue]="mes.valor">{{ mes.nombre }}</option></select>
+      </div>
+      <div class="campo">
+        <label for="anio">Año</label>
+        <select id="anio" [(ngModel)]="anioSeleccionado" (ngModelChange)="cambiarTrabajador()"><option *ngFor="let anio of anios" [ngValue]="anio">{{ anio }}</option></select>
+      </div>
+    </div>
+    <div class="acciones" *ngIf="!mostrarFormularioLiquidacion">
+      <button type="button" class="btn-continuar" [disabled]="!empresaSeleccionada || !trabajadorSeleccionado || cargandoTrabajador || cargandoTrabajadores" (click)="continuar()">{{ cargandoTrabajador ? 'Cargando...' : 'Continuar' }}</button>
+    </div>
+  </section>
+
+  <div *ngIf="mostrarFormularioLiquidacion && trabajador" class="detalle-liquidacion">
+    <section class="formulario" aria-labelledby="titulo-datos">
+      <h2 id="titulo-datos">Datos del mes</h2>
+      <p class="nota-calculo" *ngIf="parametros">Parámetros publicados: versión {{ parametros.version }} · ID {{ parametros.id }}</p>
+      <div class="campo" *ngIf="resolverAfp">
+        <label for="afp-periodo">AFP para esta liquidación</label>
+        <select id="afp-periodo" [(ngModel)]="afpCodigo">
+          <option value="">Seleccione una AFP</option>
+          <option *ngFor="let afp of afpsVigentes" [value]="afp.afp_codigo">{{ afp.afp_nombre }}</option>
+        </select>
+        <p class="nota-calculo">El nombre de la ficha no tiene una coincidencia única entre las AFP vigentes. Esta selección se aplica solo a esta liquidación.</p>
+        <p *ngIf="!afpsVigentes.length" class="pendiente">El período no tiene AFP vigentes disponibles.</p>
+      </div>
+      <div class="antecedentes">
+        <p class="identificacion"><strong>{{ trabajador.nombres }} {{ trabajador.apellido_paterno }} {{ trabajador.apellido_materno || '' }}</strong><span>RUT: {{ trabajador.rut }}</span></p>
+        <dl class="datos-ficha">
+          <div><dt>AFP</dt><dd>{{ liquidacion.afp_nombre || 'No informada' }}</dd></div>
+          <div><dt>Tipo de salud</dt><dd>{{ liquidacion.salud_tipo || 'No informado' }}</dd></div>
+          <div><dt>Institución de salud</dt><dd>{{ liquidacion.salud_institucion || 'No informada' }}</dd></div>
+          <div *ngIf="liquidacion.salud_tipo.trim().toUpperCase() === 'ISAPRE'"><dt>Valor del plan de salud</dt><dd>{{ liquidacion.salud_valor }} {{ liquidacion.salud_tipo_valor }}</dd></div>
+          <div><dt>Cargas familiares</dt><dd>{{ liquidacion.cargas_familiares }}</dd></div>
+        </dl>
+        <p class="nota-calculo">Antecedentes precargados desde la ficha del trabajador.</p>
+      </div>
+      <div class="fila">
+        <div class="campo">
+          <label for="sueldo-base">Sueldo base del mes</label>
+          <input id="sueldo-base" type="text" inputmode="numeric" #sueldoBaseInput [value]="mostrarMontoClp('sueldo_base')" (focus)="iniciarEdicionClp('sueldo_base', sueldoBaseInput)" (input)="editarMontoClp('sueldo_base', sueldoBaseInput)" (blur)="terminarEdicionClp('sueldo_base', sueldoBaseInput)" aria-describedby="ayuda-sueldo-base">
+          <span id="ayuda-sueldo-base" class="nota-calculo">Precargado desde la ficha; los cambios se aplican solo a esta liquidación.</span>
+        </div>
+        <div class="campo">
+          <label for="dias">Días trabajados</label>
+          <input id="dias" type="number" min="0" max="30" #diasInput [ngModel]="liquidacion.dias_trabajados" (ngModelChange)="actualizarDiasTrabajados($event, diasInput)">
+        </div>
+        <div class="campo"><span>Sueldo proporcional</span><strong class="monto-proporcional">{{ formatearPesos(calcularSueldoProporcional()) }}</strong></div>
+        <div class="campo" *ngFor="let haber of haberesPrincipales">
+          <label [for]="haber.campo">{{ haber.nombre }}</label>
+          <input type="text" inputmode="numeric" [id]="haber.campo" #montoInput [value]="mostrarMontoClp(haber.campo)" (focus)="iniciarEdicionClp(haber.campo, montoInput)" (input)="editarMontoClp(haber.campo, montoInput)" (blur)="terminarEdicionClp(haber.campo, montoInput)">
+        </div>
+      </div>
+      <details class="opcionales">
+        <summary>Otros haberes del mes</summary>
+        <div class="fila">
+          <div class="campo" *ngFor="let haber of haberesOcasionales">
+            <label [for]="haber.campo">{{ haber.nombre }}</label>
+            <input type="text" inputmode="numeric" [id]="haber.campo" #montoInput [value]="mostrarMontoClp(haber.campo)" (focus)="iniciarEdicionClp(haber.campo, montoInput)" (input)="editarMontoClp(haber.campo, montoInput)" (blur)="terminarEdicionClp(haber.campo, montoInput)">
+          </div>
+        </div>
+      </details>
+      <h3>Seguro de cesantía</h3>
+      <p>Tipo de contrato: {{ trabajador.tipo_contrato || 'Pendiente' }}</p>
+      <div class="campo">
+        <label for="regla-cesantia">Regla publicada aplicable</label>
+        <select id="regla-cesantia" [(ngModel)]="reglaCesantiaCodigo">
+          <option value="">Seleccione y confirme la regla</option>
+          <option *ngFor="let regla of reglasContrato" [value]="regla.regla_codigo">{{ regla.regla_codigo }}</option>
+        </select>
+        <p class="nota-calculo">Confirme afiliación y condiciones de la regla, incluida la antigüedad y el cese de aportes a CIC. El tipo de contrato por sí solo no acredita estas condiciones. No se modifica la ficha del trabajador.</p>
+      </div>
+      <h3>Descuentos del mes</h3>
+      <div class="fila">
+        <div class="campo">
+          <label for="otros-descuentos">Otros descuentos</label>
+          <input id="otros-descuentos" type="text" inputmode="numeric" #descuentosInput [value]="mostrarMontoClp('otros_descuentos')" (focus)="iniciarEdicionClp('otros_descuentos', descuentosInput)" (input)="editarMontoClp('otros_descuentos', descuentosInput)" (blur)="terminarEdicionClp('otros_descuentos', descuentosInput)" aria-describedby="ayuda-descuentos">
+          <span id="ayuda-descuentos" class="nota-calculo">Incluye anticipos y préstamos.</span>
+        </div>
+        <div class="campo">
+          <label for="apv">APV del mes</label>
+          <input id="apv" type="text" inputmode="numeric" #apvInput [value]="mostrarMontoClp('apv_monto')" (focus)="iniciarEdicionClp('apv_monto', apvInput)" (input)="editarMontoClp('apv_monto', apvInput)" (blur)="terminarEdicionClp('apv_monto', apvInput)" aria-describedby="regimen-apv">
+          <span id="regimen-apv" class="nota-calculo">Régimen APV: {{ liquidacion.apv_regimen || 'No informado' }}. Monto precargado desde la ficha; editable para este mes.</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="resumen-liquidacion" aria-labelledby="titulo-resumen">
+      <h2 id="titulo-resumen">Resumen de liquidación</h2>
+      <h3>Haberes</h3>
+      <dl>
+        <div *ngIf="calcularSueldoProporcional() !== 0"><dt>Sueldo proporcional</dt><dd>{{ formatearPesos(calcularSueldoProporcional()) }}</dd></div>
+        <ng-container *ngFor="let haber of haberesResumen">
+          <div *ngIf="liquidacion[haber.campo] !== 0"><dt>{{ haber.nombre }}</dt><dd>{{ formatearPesos(liquidacion[haber.campo]) }}</dd></div>
+        </ng-container>
+        <div class="total"><dt>Total haberes</dt><dd>{{ formatearPesos(calcularTotalHaberes()) }}</dd></div>
+        <div><dt>Base imponible</dt><dd>{{ formatearPesos(calcularBaseImponible()) }}</dd></div>
+      </dl>
+      <h3>Descuentos</h3>
+      <dl>
+        <div><dt>Base previsional utilizada</dt><dd>{{ formatearPesos(calcularBasePrevisional()) }}</dd></div>
+        <div><dt>Pensión obligatoria ({{ parametros?.pension_obligatoria_pct ?? 'Tasa pendiente' }}%)</dt><dd>{{ formatearPesos(calcularPensionObligatoria()) }}</dd></div>
+        <div><dt>Comisión AFP {{ afpAplicada?.afp_nombre }} ({{ afpAplicada?.comision_pct ?? 'Tasa pendiente' }}%)</dt><dd>{{ formatearPesos(calcularComisionAfp()) }}</dd></div>
+        <div><dt>AFP total</dt><dd>{{ formatearPesos(calcularDescuentoAfp()) }}</dd></div>
+        <div>
+          <dt>Salud: {{ descripcionSalud() }}</dt>
+          <dd *ngIf="calcularDescuentoSalud() !== null; else saludPendiente">{{ formatearPesos(calcularDescuentoSalud() ?? 0) }}</dd>
+          <ng-template #saludPendiente><dd class="pendiente">Pendiente</dd></ng-template>
+        </div>
+        <div><dt>APV</dt><dd>{{ formatearPesos(liquidacion.apv_monto) }}</dd></div>
+        <div><dt>Otros descuentos</dt><dd>{{ formatearPesos(liquidacion.otros_descuentos) }}</dd></div>
+        <div><dt>Base cesantía</dt><dd>{{ formatearPesos(calcularBaseCesantia()) }}</dd></div>
+        <div><dt>Cesantía trabajador</dt><dd>{{ formatearPesos(cesantia('trabajador_cic_pct').monto) }}</dd></div>
+        <div><dt>Base tributable IUSC</dt><dd>{{ formatearPesos(baseTributable().monto) }}</dd></div>
+        <div><dt>IUSC</dt><dd>{{ formatearPesos(iusc().monto) }}</dd></div>
+        <div class="total"><dt>Total descuentos</dt><dd>{{ formatearPesos(calcularTotalDescuentos()) }}</dd></div>
+      </dl>
+      <p class="pendiente" role="status" *ngIf="cesantia('trabajador_cic_pct').pendiente">{{ cesantia('trabajador_cic_pct').pendiente }}</p>
+      <p class="pendiente" role="status" *ngIf="iusc().pendiente">{{ iusc().pendiente }}</p>
+      <h3>Aportes del empleador (no descontados del líquido)</h3>
+      <dl>
+        <div><dt>Cesantía CIC empleador</dt><dd>{{ formatearPesos(cesantia('empleador_cic_pct').monto) }}</dd></div>
+        <div><dt>Cesantía FCS empleador</dt><dd>{{ formatearPesos(cesantia('empleador_fcs_pct').monto) }}</dd></div>
+      </dl>
+      <p class="pendiente" *ngIf="cesantia('empleador_cic_pct').pendiente">CIC empleador: {{ cesantia('empleador_cic_pct').pendiente }}</p>
+      <p class="pendiente" *ngIf="cesantia('empleador_fcs_pct').pendiente">FCS empleador: {{ cesantia('empleador_fcs_pct').pendiente }}</p>
+      <dl class="resultado-estimado"><div><dt>Líquido estimado</dt><dd>{{ formatearPesos(calcularLiquidoEstimado()) }}</dd></div></dl>
+      <p class="advertencia">Estimación mensual con parámetros publicados y la clasificación actual de haberes. Si falta un descuento necesario, el total y el líquido quedan pendientes. No contempla reliquidaciones ni situaciones tributarias especiales. No se guarda la liquidación.</p>
+    </section>
+  </div>
+</div>

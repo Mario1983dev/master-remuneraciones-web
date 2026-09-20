@@ -1,0 +1,152 @@
+<div class="contenedor-trabajadores">
+
+  <div class="encabezado">
+    <div>
+      <h1>Trabajadores</h1>
+      <p>Gestión de trabajadores de Remuneraciones</p>
+    </div>
+
+    <button
+      class="btn-nuevo"
+      [routerLink]="['/trabajadores/nuevo']"
+      [queryParams]="{ companyId: empresaSeleccionada }"
+      [disabled]="!empresaSeleccionada">
+      Nuevo trabajador
+    </button>
+  </div>
+
+  <div class="filtros">
+
+    <div class="campo">
+      <label>Empresa</label>
+
+      <select
+        [(ngModel)]="empresaSeleccionada"
+        (change)="onEmpresaChange()"
+        [disabled]="cargandoEmpresas">
+
+        <option value="">
+          {{ cargandoEmpresas ? 'Cargando empresas...' : 'Seleccione empresa' }}
+        </option>
+
+        <option
+          *ngFor="let empresa of empresas"
+          [value]="empresa.id">
+          {{ empresa.name || empresa.legal_name || empresa.business_name }}
+        </option>
+
+      </select>
+    </div>
+
+  </div>
+
+  <div
+    *ngIf="errorMessage"
+    class="mensaje-error">
+    {{ errorMessage }}
+  </div>
+
+  <div class="tabla-contenedor">
+
+    <table>
+
+      <thead>
+        <tr>
+          <th>RUT</th>
+          <th>Nombre</th>
+          <th>Cargo</th>
+          <th>Tipo contrato</th>
+          <th>Sueldo base</th>
+          <th>AFP</th>
+          <th>Salud</th>
+          <th>Estado</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+
+      <tbody>
+
+        <tr *ngIf="!empresaSeleccionada">
+          <td colspan="9" class="sin-datos">
+            Seleccione una empresa para ver sus trabajadores.
+          </td>
+        </tr>
+
+        <tr *ngIf="empresaSeleccionada && cargandoTrabajadores">
+          <td colspan="9" class="sin-datos">
+            Cargando trabajadores...
+          </td>
+        </tr>
+
+        <tr
+          *ngIf="
+            empresaSeleccionada &&
+            !cargandoTrabajadores &&
+            trabajadores.length === 0
+          ">
+          <td colspan="9" class="sin-datos">
+            Esta empresa no tiene trabajadores registrados.
+          </td>
+        </tr>
+
+        <tr *ngFor="let trabajador of trabajadores">
+
+          <td>
+            {{ trabajador.rut }}
+          </td>
+
+          <td>
+            {{ trabajador.nombres }}
+            {{ trabajador.apellido_paterno }}
+            {{ trabajador.apellido_materno }}
+          </td>
+
+          <td>
+            {{ trabajador.cargo || '-' }}
+          </td>
+
+          <td>
+            {{ trabajador.tipo_contrato || '-' }}
+          </td>
+
+          <td>
+            {{ trabajador.sueldo_base | currency:'CLP':'symbol-narrow':'1.0-0' }}
+          </td>
+
+          <td>
+            {{ trabajador.afp_nombre || '-' }}
+          </td>
+
+          <td>
+            {{ trabajador.salud_institucion || trabajador.salud_tipo || '-' }}
+          </td>
+
+          <td>
+            {{ trabajador.estado == 1 ? 'Activo' : 'Inactivo' }}
+          </td>
+
+          <td class="acciones-tabla">
+ <button
+    type="button"
+    [routerLink]="['/trabajadores', trabajador.id]"
+    [queryParams]="{ companyId: empresaSeleccionada }">
+    Ver
+  </button>
+
+  <button
+    type="button"
+    [routerLink]="['/trabajadores', trabajador.id, 'editar']"
+    [queryParams]="{ companyId: empresaSeleccionada }">
+    Editar
+  </button>
+          </td>
+
+        </tr>
+
+      </tbody>
+
+    </table>
+
+  </div>
+
+</div>
