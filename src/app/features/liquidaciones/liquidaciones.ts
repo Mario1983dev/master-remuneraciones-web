@@ -2,10 +2,12 @@ import { CommonModule } from '@angular/common';
 import {
   ChangeDetectorRef,
   Component,
-  OnInit
+  OnInit,
+  OnDestroy
 } from '@angular/core';
+import { catchError, finalize, Subscription } from 'rxjs';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 
 import { RemuneracionesService } from '../../shared/services/remuneraciones.service';
 
@@ -20,9 +22,16 @@ import { RemuneracionesService } from '../../shared/services/remuneraciones.serv
   templateUrl: './liquidaciones.html',
   styleUrl: './liquidaciones.scss',
 })
-export class Liquidaciones implements OnInit {
+export class Liquidaciones implements OnInit, OnDestroy {
+  private consulta?: Subscription;
+  private descarga?: Subscription;
+  private destruido = false;
+  descargandoPdfId: number | null = null;
 
   empresas: any[] = [];
+  puedeAdministrar = false;
+  get permiteNueva(): boolean { return this.puedeAdministrar && this.empresas.some(e => Number(e.id) === Number(this.empresaSeleccionada) && e.status === 'active'); }
+
   liquidaciones: any[] = [];
 
   empresaSeleccionada = '';
@@ -54,11 +63,18 @@ export class Liquidaciones implements OnInit {
 
   constructor(
     private remuneracionesService: RemuneracionesService,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private route: ActivatedRoute
   ) {}
 
   ngOnInit(): void {
+    const q = this.route.snapshot.queryParamMap;
+    this.empresaSeleccionada = q.get('companyId') || '';
+    const anio = Number(q.get('anio')), mes = Number(q.get('mes'));
+    if (Number.isInteger(anio) && anio >= 1000 && anio <= 9999) this.anioSeleccionado = anio;
+    if (Number.isInteger(mes) && mes >= 1 && mes <= 12) this.mesSeleccionado = mes;
     this.generarAnios();
+    if (!this.anios.includes(this.anioSeleccionado)) this.anios.unshift(this.anioSeleccionado);
     this.cargarEmpresas();
   }
 
@@ -83,6 +99,7 @@ export class Liquidaciones implements OnInit {
     this.remuneracionesService.getEmpresas().subscribe({
       next: (response: any) => {
 
+        this.puedeAdministrar = response?.can_manage === true;
         if (Array.isArray(response)) {
           this.empresas = response;
 
@@ -101,7 +118,9 @@ export class Liquidaciones implements OnInit {
         this.cargandoEmpresas = false;
 
         // Si solo existe una empresa, seleccionarla automáticamente
-        if (this.empresas.length === 1) {
+        if (this.empresas.some(e => String(e.id) === this.empresaSeleccionada)) {
+          this.cargarLiquidaciones();
+        } else if (this.empresas.length === 1) {
           this.empresaSeleccionada =
             String(this.empresas[0].id);
 
@@ -126,6 +145,8 @@ export class Liquidaciones implements OnInit {
   }
 
   cambiarEmpresa(): void {
+    this.consulta?.unsubscribe();
+    this.cargandoLiquidaciones = false;
     this.liquidaciones = [];
     this.errorMessage = '';
 
@@ -155,20 +176,80 @@ export class Liquidaciones implements OnInit {
 
     this.cdr.detectChanges();
 
-    /*
-      Más adelante conectaremos aquí la API
-      para obtener las liquidaciones de:
+    this.consulta?.unsubscribe();
+    this.consulta = this.remuneracionesService.getLiquidaciones(Number(this.empresaSeleccionada), this.anioSeleccionado, this.mesSeleccionado)
+      .subscribe({
+        next: response => {
+          this.liquidaciones = response.liquidaciones;
+          this.cargandoLiquidaciones = false;
+          this.cdr.detectChanges();
+        },
+        error: error => {
+          this.liquidaciones = [];
+          this.cargandoLiquidaciones = false;
+          this.errorMessage = error?.error?.message || 'No fue posible cargar las liquidaciones.';
+          this.cdr.detectChanges();
+        }
+      });
+  }
 
-      empresaSeleccionada
-      mesSeleccionado
-      anioSeleccionado
-    */
-
-    this.liquidaciones = [];
-
-    this.cargandoLiquidaciones = false;
-
+  verPdf(liquidacion: { id: number; anio: number; mes: number }): void {
+    if (this.descargandoPdfId !== null || !Number.isSafeInteger(liquidacion.id) || liquidacion.id <= 0) return;
+    // Abrir durante el clic, antes de la petición autenticada, evita el bloqueo de ventanas.
+    const visor = window.open('', '_blank');
+    if (!visor) {
+      this.errorMessage = 'Permite las ventanas emergentes para ver el PDF.';
+      this.cdr.detectChanges();
+      return;
+    }
+    visor.opener = null;
+    visor.document.title = 'Cargando liquidación…';
+    visor.document.body.textContent = 'Cargando PDF de la liquidación…';
+    let abierto = false;
+    this.descargandoPdfId = liquidacion.id;
+    this.errorMessage = '';
     this.cdr.detectChanges();
+    this.descarga = this.remuneracionesService.descargarLiquidacionPdf(liquidacion.id).pipe(
+      catchError(async error => {
+        let mensaje = 'No fue posible abrir el PDF. Intente nuevamente.';
+        try {
+          const cuerpo = error.error instanceof Blob ? JSON.parse(await error.error.text()) : error.error;
+          if (typeof cuerpo?.message === 'string') mensaje = cuerpo.message;
+        } catch { /* Conservar mensaje legible ante respuestas no JSON. */ }
+        if (!this.destruido) this.errorMessage = mensaje;
+        return null;
+      }),
+      finalize(() => {
+        if (!abierto && !visor.closed) visor.close();
+        this.descargandoPdfId = null;
+        if (!this.destruido) this.cdr.detectChanges();
+      })
+    ).subscribe(blob => {
+      if (!blob || this.destruido || visor.closed) return;
+      if (blob.type !== 'application/pdf' || blob.size === 0) {
+        this.errorMessage = 'El servidor no devolvió un PDF válido.';
+        return;
+      }
+      const nombre = `liquidacion-${liquidacion.id}-${liquidacion.anio}-${String(liquidacion.mes).padStart(2, '0')}.pdf`;
+      const url = URL.createObjectURL(new File([blob], nombre, { type: 'application/pdf' }));
+      try {
+        visor.location.replace(url);
+        abierto = true;
+        // Mantener el archivo disponible para imprimir/descargar incluso al salir de la lista.
+        const limpieza = setInterval(() => {
+          if (visor.closed) { URL.revokeObjectURL(url); clearInterval(limpieza); }
+        }, 1000);
+      } catch {
+        URL.revokeObjectURL(url);
+        this.errorMessage = 'No fue posible abrir el visor PDF. Intente nuevamente.';
+      }
+    });
+  }
+
+  ngOnDestroy(): void {
+    this.destruido = true;
+    this.consulta?.unsubscribe();
+    this.descarga?.unsubscribe();
   }
 
   obtenerNombreMes(mes: number): string {

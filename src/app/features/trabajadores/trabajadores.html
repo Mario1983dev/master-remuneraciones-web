@@ -2,6 +2,7 @@
 
   <div class="encabezado">
     <div>
+      <a routerLink="/empresas">Empresas</a>
       <h1>Trabajadores</h1>
       <p>Gestión de trabajadores de Remuneraciones</p>
     </div>
@@ -10,7 +11,7 @@
       class="btn-nuevo"
       [routerLink]="['/trabajadores/nuevo']"
       [queryParams]="{ companyId: empresaSeleccionada }"
-      [disabled]="!empresaSeleccionada">
+      [disabled]="!permiteNuevo">
       Nuevo trabajador
     </button>
   </div>
@@ -32,7 +33,7 @@
         <option
           *ngFor="let empresa of empresas"
           [value]="empresa.id">
-          {{ empresa.name || empresa.legal_name || empresa.business_name }}
+          {{ empresa.name || empresa.legal_name || empresa.business_name }}{{ empresa.status === 'inactive' ? ' (Inactiva)' : '' }}
         </option>
 
       </select>
@@ -135,6 +136,7 @@
 
   <button
     type="button"
+    [disabled]="!permiteNuevo"
     [routerLink]="['/trabajadores', trabajador.id, 'editar']"
     [queryParams]="{ companyId: empresaSeleccionada }">
     Editar

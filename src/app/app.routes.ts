@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { Empresas } from './features/empresas/empresas';
 import { ParametrosRemuneraciones } from './features/parametros-remuneraciones/parametros-remuneraciones';
 
 import { LoginComponent } from './features/login/login';
@@ -11,6 +12,10 @@ import { Liquidaciones } from './features/liquidaciones/liquidaciones';
 import { NuevaLiquidacion } from './features/liquidaciones/nueva-liquidacion/nueva-liquidacion';
 
 export const routes: Routes = [
+  { path: 'empresas', component: Empresas },
+  { path: 'empresas/nueva', component: Empresas },
+  { path: 'empresas/:id/editar', component: Empresas },
+  { path: 'empresas/:id', component: Empresas },
   { path: 'parametros-remuneraciones', component: ParametrosRemuneraciones },
 
   {

@@ -23,7 +23,7 @@ export class Inicio implements OnInit {
       const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
       const usuario = JSON.parse(atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')));
       const vigente = !usuario.exp || usuario.exp * 1000 > Date.now();
-      this.mostrarOficina.set(vigente && ['OFFICE_ADMIN', 'OFFICE_USER'].includes(String(usuario.role).trim().toUpperCase()));
+      this.mostrarOficina.set(vigente && ['MASTER', 'OFFICE_ADMIN', 'OFFICE_USER'].includes(String(usuario.role).trim().toUpperCase()));
     } catch { this.mostrarOficina.set(false); }
     this.parametros.puedeAdministrar().pipe(takeUntilDestroyed(this.destroyRef)).subscribe(permitido => this.mostrarParametros.set(permitido));
   }

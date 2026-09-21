@@ -7,7 +7,8 @@ import {
   OnDestroy
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { CrearLiquidacion } from '../../../shared/services/liquidacion.model';
 import { finalize, forkJoin, Subscription } from 'rxjs';
 import { AfpParametros, ParametrosFormulario } from '../../../shared/services/parametros-remuneraciones.service';
 
@@ -16,7 +17,7 @@ import { RemuneracionesService } from '../../../shared/services/remuneraciones.s
 
 type CampoMontoClp = 'sueldo_base' | 'apv_monto' | 'horas_extra' | 'bonos' |
   'comisiones' | 'gratificacion' | 'aguinaldo' | 'colacion' | 'movilizacion' |
-  'otros_haberes' | 'otros_descuentos';
+  'otros_haberes' | 'otros_descuentos' | 'anticipos' | 'prestamos';
 
 @Component({
   selector: 'app-nueva-liquidacion',
@@ -30,6 +31,11 @@ type CampoMontoClp = 'sueldo_base' | 'apv_monto' | 'horas_extra' | 'bonos' |
   styleUrl: './nueva-liquidacion.scss'
 })
 export class NuevaLiquidacion implements OnInit, OnDestroy {
+  readonly descuentosSeparados = [{ campo: 'anticipos', nombre: 'Anticipos' }, { campo: 'prestamos', nombre: 'Préstamos' }] as const;
+  guardando = false;
+  guardada = false;
+  private contextoCargado = '';
+  private destruido = false;
   parametros: (ParametrosFormulario & { id: number; version: number; estado: string; utm_valor_clp?: string | number | null; tope_cesantia_uf?: string | number | null }) | null = null;
   afpsVigentes: AfpParametros[] = [];
   afpCodigo = '';
@@ -46,6 +52,7 @@ export class NuevaLiquidacion implements OnInit, OnDestroy {
   // =====================================================
 
   empresas: any[] = [];
+  puedeAdministrar = false;
   trabajadores: any[] = [];
 
   empresaSeleccionada = '';
@@ -130,6 +137,8 @@ export class NuevaLiquidacion implements OnInit, OnDestroy {
 
     otros_haberes: 0,
 
+    anticipos: 0,
+    prestamos: 0,
     otros_descuentos: 0
 
   };
@@ -167,7 +176,8 @@ export class NuevaLiquidacion implements OnInit, OnDestroy {
   constructor(
     private remuneracionesService: RemuneracionesService,
     private route: ActivatedRoute,
-    private cdr: ChangeDetectorRef
+    private cdr: ChangeDetectorRef,
+    private router: Router
   ) { }
 
 
@@ -220,7 +230,7 @@ export class NuevaLiquidacion implements OnInit, OnDestroy {
 
 
     this.remuneracionesService
-      .getEmpresas()
+      .getEmpresas(true)
       .pipe(
         finalize(() => {
 
@@ -234,8 +244,9 @@ export class NuevaLiquidacion implements OnInit, OnDestroy {
 
         next: (response: any) => {
 
+          this.puedeAdministrar = response?.can_manage === true;
           this.empresas =
-            this.normalizarEmpresas(response);
+            this.normalizarEmpresas(response).filter(e => e.status === 'active');
 
 
           const companyId =
@@ -245,7 +256,7 @@ export class NuevaLiquidacion implements OnInit, OnDestroy {
 
 
           // Si viene companyId por URL
-          if (companyId) {
+          if (companyId && this.empresas.some(e => Number(e.id) === Number(companyId))) {
 
             this.empresaSeleccionada =
               String(companyId);
@@ -479,6 +490,7 @@ export class NuevaLiquidacion implements OnInit, OnDestroy {
   // =====================================================
 
   cambiarTrabajador(): void {
+    this.contextoCargado = '';
     // Cancelar la consulta anterior evita que una respuesta tardía restaure sus datos.
     this.cargaTrabajador?.unsubscribe();
     this.trabajador = null;
@@ -496,6 +508,7 @@ export class NuevaLiquidacion implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.destruido = true;
 
     this.cargaTrabajador?.unsubscribe();
     this.cargaTrabajadores?.unsubscribe();
@@ -574,6 +587,8 @@ export class NuevaLiquidacion implements OnInit, OnDestroy {
           // Cargar datos permanentes
           // del trabajador en la liquidación
           this.cargarDatosLiquidacion();
+          this.reglaCesantiaCodigo = this.reglaCesantiaAutomatica?.regla_codigo ?? '';
+          this.contextoCargado = this.contextoActual();
           const nombre = this.normalizarNombreAfp(this.liquidacion.afp_nombre);
           const coincidencias = this.afpsVigentes.filter(afp => nombre !== '' && this.normalizarNombreAfp(afp.afp_nombre) === nombre);
           this.afpCodigo = coincidencias.length === 1 ? coincidencias[0].afp_codigo : '';
@@ -687,6 +702,8 @@ export class NuevaLiquidacion implements OnInit, OnDestroy {
 
       otros_haberes: 0,
 
+      anticipos: 0,
+      prestamos: 0,
       otros_descuentos: 0
 
     };
@@ -862,6 +879,20 @@ export class NuevaLiquidacion implements OnInit, OnDestroy {
     return this.reglasCesantia.filter(r => r.tipo_contrato.trim().toUpperCase() === tipo);
   }
 
+  get reglaCesantiaAutomatica(): ReglaCesantia | null {
+    const reglas = this.reglasContrato;
+    if (reglas.length !== 1) return null;
+    const tipo = String(this.trabajador?.tipo_contrato || '').trim().toUpperCase();
+    const codigo = reglas[0].regla_codigo.trim().toUpperCase();
+    // La estructura actual no describe condiciones especiales (antigüedad,
+    // afiliación o cese de aportes). Esos códigos requieren confirmación.
+    return tipo && (codigo === 'GENERAL' || codigo === tipo) ? reglas[0] : null;
+  }
+
+  get requiereSeleccionCesantia(): boolean {
+    return this.reglasContrato.length > 0 && this.reglaCesantiaAutomatica === null;
+  }
+
   calcularBaseCesantia(): number | null {
     const uf = decimal(this.parametros?.uf_valor_clp);
     const tope = decimal(this.parametros?.tope_cesantia_uf);
@@ -910,12 +941,79 @@ export class NuevaLiquidacion implements OnInit, OnDestroy {
     const impuesto = this.iusc().monto;
     if (afp === null || salud === null || cesantia === null || impuesto === null) return null;
     return afp + salud + cesantia + impuesto + Math.round(this.normalizarMonto(this.liquidacion.apv_monto)) +
-      Math.round(this.normalizarMonto(this.liquidacion.otros_descuentos));
+      Math.round(this.normalizarMonto(this.liquidacion.otros_descuentos)) +
+      Math.round(this.normalizarMonto(this.liquidacion.anticipos)) +
+      Math.round(this.normalizarMonto(this.liquidacion.prestamos));
   }
 
   calcularLiquidoEstimado(): number | null {
     const descuentos = this.calcularTotalDescuentos();
     return descuentos === null ? null : this.calcularTotalHaberes() - descuentos;
+  }
+
+  private contextoActual(): string {
+    return [this.empresaSeleccionada, this.trabajadorSeleccionado, this.anioSeleccionado, this.mesSeleccionado].join('/');
+  }
+
+  get puedeGuardar(): boolean {
+    const d = this.liquidacion;
+    return this.puedeAdministrar && !this.guardando && !this.guardada && !this.cargandoTrabajador && !this.cargandoTrabajadores &&
+      this.mostrarFormularioLiquidacion && this.contextoCargado === this.contextoActual() &&
+      this.empresas.some(e => Number(e.id) === Number(this.empresaSeleccionada)) &&
+      Number(this.trabajador?.id) === Number(this.trabajadorSeleccionado) &&
+      Number(this.trabajador?.company_id) === Number(this.empresaSeleccionada) &&
+      Number.isInteger(this.anioSeleccionado) && this.anioSeleccionado >= 1000 && this.anioSeleccionado <= 9999 &&
+      Number.isInteger(this.mesSeleccionado) && this.mesSeleccionado >= 1 && this.mesSeleccionado <= 12 &&
+      this.parametros?.estado === 'PUBLICADO' && !!this.afpAplicada &&
+      Object.values(d).every(v => typeof v !== 'number' || (Number.isFinite(v) && v >= 0 && v < 1e10)) &&
+      d.dias_trabajados <= 30 && Number.isInteger(d.cargas_familiares) &&
+      this.calcularLiquidoEstimado() !== null &&
+      this.cesantia('empleador_cic_pct').monto !== null && this.cesantia('empleador_fcs_pct').monto !== null;
+  }
+
+  guardarLiquidacion(): void {
+    if (this.guardando || this.guardada) return;
+    if (!this.puedeGuardar) {
+      this.errorMessage = 'Revise empresa, trabajador, período y complete los cálculos pendientes antes de guardar.';
+      return;
+    }
+    const payload: CrearLiquidacion = {
+      empresa_id: Number(this.empresaSeleccionada), trabajador_id: Number(this.trabajadorSeleccionado),
+      anio: this.anioSeleccionado, mes: this.mesSeleccionado,
+      parametros_version_id: this.parametros!.id, parametros_version: this.parametros!.version,
+      afp_codigo: this.afpCodigo, regla_cesantia_codigo: this.reglaCesantiaCodigo,
+      datos: { ...this.liquidacion },
+      resultados: {
+        sueldo_proporcional: this.calcularSueldoProporcional(), base_imponible: this.calcularBaseImponible(),
+        base_previsional: this.calcularBasePrevisional(), pension_obligatoria: this.calcularPensionObligatoria(),
+        comision_afp: this.calcularComisionAfp(), descuento_afp: this.calcularDescuentoAfp(),
+        descuento_salud: this.calcularDescuentoSalud(), base_cesantia: this.calcularBaseCesantia(),
+        cesantia_trabajador: this.cesantia('trabajador_cic_pct').monto,
+        cesantia_empleador_cic: this.cesantia('empleador_cic_pct').monto,
+        cesantia_empleador_fcs: this.cesantia('empleador_fcs_pct').monto,
+        base_tributable: this.baseTributable().monto, iusc: this.iusc().monto,
+        total_haberes: this.calcularTotalHaberes(), total_descuentos: this.calcularTotalDescuentos(),
+        liquido_pagar: this.calcularLiquidoEstimado()
+      }
+    };
+    this.errorMessage = '';
+    this.guardando = true;
+    this.cdr.detectChanges();
+    this.remuneracionesService.crearLiquidacion(payload).pipe(finalize(() => {
+      this.guardando = false;
+      if (!this.destruido) this.cdr.detectChanges();
+    })).subscribe({
+      next: () => {
+        this.guardada = true;
+        if (!this.destruido) void this.router.navigate(['/liquidaciones'], {
+          queryParams: { companyId: payload.empresa_id, anio: payload.anio, mes: payload.mes }
+        });
+      },
+      error: error => {
+        this.errorMessage = error?.error?.message ||
+          'No fue posible confirmar el guardado. Revise la lista antes de reintentar.';
+      }
+    });
   }
 
   // =====================================================

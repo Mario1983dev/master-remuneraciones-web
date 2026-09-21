@@ -12,7 +12,7 @@ describe('Inicio por rol', () => {
       TestBed.configureTestingModule({ imports: [Inicio], providers: [provideRouter([]), { provide: ParametrosRemuneracionesService, useValue: { puedeAdministrar: () => of(rol === 'MASTER') } }] });
       const fixture = TestBed.createComponent(Inicio); fixture.detectChanges();
       const enlaces = Array.from(fixture.nativeElement.querySelectorAll('.dashboard-card') as NodeListOf<HTMLAnchorElement>).map(a => a.getAttribute('href'));
-      expect(enlaces).toEqual(rol === 'MASTER' ? ['/parametros-remuneraciones'] : ['/trabajadores', '/liquidaciones']);
+      expect(enlaces).toEqual(rol === 'MASTER' ? ['/parametros-remuneraciones', '/empresas', '/trabajadores', '/liquidaciones'] : ['/empresas', '/trabajadores', '/liquidaciones']);
     });
   }
 });

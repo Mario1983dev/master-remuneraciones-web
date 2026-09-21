@@ -4,13 +4,14 @@
   <div class="encabezado">
 
     <div>
+      <a routerLink="/empresas">Empresas</a>
       <h1>Liquidaciones</h1>
       <p>Gestión de liquidaciones de sueldo</p>
     </div>
 
     <button
       class="btn-nueva"
-      [disabled]="!tieneEmpresaSeleccionada()"
+      [disabled]="!permiteNueva"
       [routerLink]="['/liquidaciones/nueva']"
       [queryParams]="{ companyId: empresaSeleccionada }">
       Nueva liquidación
@@ -158,9 +159,12 @@
 
           <td class="acciones">
 
-            <button
-              class="btn-ver">
-              Ver
+            <button type="button"
+              class="btn-ver"
+              [disabled]="descargandoPdfId !== null"
+              [attr.aria-label]="'Ver PDF de ' + liquidacion.trabajador"
+              (click)="verPdf(liquidacion)">
+              {{ descargandoPdfId === liquidacion.id ? 'Abriendo...' : 'Ver PDF' }}
             </button>
 
           </td>

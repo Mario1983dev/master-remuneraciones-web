@@ -6,6 +6,7 @@
 
   <p *ngIf="errorMessage" class="mensaje-error" role="alert">{{ errorMessage }}</p>
 
+  <fieldset class="bloque-guardado" [disabled]="guardando || guardada">
   <section class="formulario" aria-label="Empresa, trabajador y período">
     <div class="fila">
       <div class="campo">
@@ -90,7 +91,8 @@
       </details>
       <h3>Seguro de cesantía</h3>
       <p>Tipo de contrato: {{ trabajador.tipo_contrato || 'Pendiente' }}</p>
-      <div class="campo">
+      <p class="nota-calculo" *ngIf="reglaCesantiaAutomatica">Regla aplicada automáticamente: {{ reglaCesantiaCodigo }}.</p>
+      <div class="campo" *ngIf="requiereSeleccionCesantia">
         <label for="regla-cesantia">Regla publicada aplicable</label>
         <select id="regla-cesantia" [(ngModel)]="reglaCesantiaCodigo">
           <option value="">Seleccione y confirme la regla</option>
@@ -100,10 +102,16 @@
       </div>
       <h3>Descuentos del mes</h3>
       <div class="fila">
+        <div class="campo" *ngFor="let campo of descuentosSeparados">
+          <label [for]="campo.campo">{{ campo.nombre }}</label>
+          <input type="text" inputmode="numeric" [id]="campo.campo" #descuentoInput [value]="mostrarMontoClp(campo.campo)" (focus)="iniciarEdicionClp(campo.campo, descuentoInput)" (input)="editarMontoClp(campo.campo, descuentoInput)" (blur)="terminarEdicionClp(campo.campo, descuentoInput)">
+        </div>
+      </div>
+      <div class="fila">
         <div class="campo">
           <label for="otros-descuentos">Otros descuentos</label>
           <input id="otros-descuentos" type="text" inputmode="numeric" #descuentosInput [value]="mostrarMontoClp('otros_descuentos')" (focus)="iniciarEdicionClp('otros_descuentos', descuentosInput)" (input)="editarMontoClp('otros_descuentos', descuentosInput)" (blur)="terminarEdicionClp('otros_descuentos', descuentosInput)" aria-describedby="ayuda-descuentos">
-          <span id="ayuda-descuentos" class="nota-calculo">Incluye anticipos y préstamos.</span>
+          <span id="ayuda-descuentos" class="nota-calculo">Descuentos adicionales a anticipos y préstamos.</span>
         </div>
         <div class="campo">
           <label for="apv">APV del mes</label>
@@ -136,6 +144,8 @@
           <ng-template #saludPendiente><dd class="pendiente">Pendiente</dd></ng-template>
         </div>
         <div><dt>APV</dt><dd>{{ formatearPesos(liquidacion.apv_monto) }}</dd></div>
+        <div><dt>Anticipos</dt><dd>{{ formatearPesos(liquidacion.anticipos) }}</dd></div>
+        <div><dt>Préstamos</dt><dd>{{ formatearPesos(liquidacion.prestamos) }}</dd></div>
         <div><dt>Otros descuentos</dt><dd>{{ formatearPesos(liquidacion.otros_descuentos) }}</dd></div>
         <div><dt>Base cesantía</dt><dd>{{ formatearPesos(calcularBaseCesantia()) }}</dd></div>
         <div><dt>Cesantía trabajador</dt><dd>{{ formatearPesos(cesantia('trabajador_cic_pct').monto) }}</dd></div>
@@ -153,7 +163,14 @@
       <p class="pendiente" *ngIf="cesantia('empleador_cic_pct').pendiente">CIC empleador: {{ cesantia('empleador_cic_pct').pendiente }}</p>
       <p class="pendiente" *ngIf="cesantia('empleador_fcs_pct').pendiente">FCS empleador: {{ cesantia('empleador_fcs_pct').pendiente }}</p>
       <dl class="resultado-estimado"><div><dt>Líquido estimado</dt><dd>{{ formatearPesos(calcularLiquidoEstimado()) }}</dd></div></dl>
-      <p class="advertencia">Estimación mensual con parámetros publicados y la clasificación actual de haberes. Si falta un descuento necesario, el total y el líquido quedan pendientes. No contempla reliquidaciones ni situaciones tributarias especiales. No se guarda la liquidación.</p>
+      <p class="advertencia">Estimación mensual con parámetros publicados y la clasificación actual de haberes. Si falta un descuento necesario, el total y el líquido quedan pendientes. No contempla reliquidaciones ni situaciones tributarias especiales. Al guardar se conservarán los datos y parámetros utilizados.</p>
     </section>
+  </div>
+  </fieldset>
+  <div class="acciones" *ngIf="mostrarFormularioLiquidacion">
+    <button type="button" class="btn-continuar" [disabled]="!puedeGuardar" (click)="guardarLiquidacion()">{{ guardando ? 'Guardando...' : 'Guardar liquidación' }}</button>
+    <p role="status" *ngIf="guardando">Guardando liquidación...</p>
+    <p class="nota-calculo" *ngIf="!puedeGuardar && !guardando && !guardada">Complete los datos y resuelva los cálculos pendientes para guardar.</p>
+    <p role="status" *ngIf="guardada">Liquidación guardada. <a routerLink="/liquidaciones">Volver a Liquidaciones</a></p>
   </div>
 </div>

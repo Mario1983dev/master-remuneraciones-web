@@ -177,7 +177,7 @@
   class="btn-guardar"
   type="button"
   (click)="guardar()"
-  [disabled]="guardando || !companyId">
+  [disabled]="guardando || !companyId || !empresaHabilitada">
 
   {{ guardando ? 'Guardando...' : 'Guardar trabajador' }}
 

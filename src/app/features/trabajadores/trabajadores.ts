@@ -28,6 +28,10 @@ import {
 export class Trabajadores implements OnInit {
 
   empresas: any[] = [];
+  puedeAdministrar = false;
+  get permiteNuevo(): boolean {
+    return this.puedeAdministrar && this.empresas.some(e => Number(e.id) === Number(this.empresaSeleccionada) && e.status === 'active');
+  }
   trabajadores: any[] = [];
 
   empresaSeleccionada = '';
@@ -67,6 +71,7 @@ export class Trabajadores implements OnInit {
             response
           );
 
+          this.puedeAdministrar = response?.can_manage === true;
           this.empresas =
             response?.empresas || [];
 

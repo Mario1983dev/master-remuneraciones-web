@@ -42,3 +42,30 @@ __screenshots__/
 # System files
 .DS_Store
 Thumbs.db
+
+# Secretos y credenciales locales
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+.npmrc
+
+# Archivos locales y artefactos generados
+*.log
+*.zip
+*.7z
+*.rar
+*.bak
+*.backup
+*.sqlite
+*.sqlite3
+*.db
+/output/
+/backups/
+/backup/

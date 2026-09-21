@@ -1,0 +1,46 @@
+<main>
+  <nav><a routerLink="/dashboard">Inicio</a> / <a routerLink="/empresas">Empresas</a></nav>
+  <header><div><h1>{{ vista() === 'nueva' ? 'Nueva empresa' : vista() === 'editar' ? 'Editar empresa' : vista() === 'detalle' ? empresa()?.name || 'Empresa' : 'Empresas' }}</h1>
+    <p>Empresas de SoluPrime Remuneraciones</p></div>
+    @if (vista() === 'lista' && administrar()) { <a class="primary" routerLink="/empresas/nueva">Nueva empresa</a> }
+  </header>
+  @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+  @if (cargando()) { <p role="status">Cargando empresas…</p> }
+  @else if (vista() === 'lista') {
+    <section class="filters"><label>Buscar por RUT o nombre<input [(ngModel)]="filtro" type="search"></label>
+      <label>Estado<select [(ngModel)]="estado"><option value="">Todos</option><option value="active">Activas</option><option value="inactive">Inactivas</option></select></label></section>
+    <div class="table"><table><thead><tr><th>RUT</th><th>Razón social / nombre</th><th>Oficina</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <tbody>@for (e of filtradas(); track e.id) {
+        <tr><td>{{ e.rut }}</td><td>{{ e.name }}</td><td>{{ e.office_id }}</td><td>{{ e.status === 'active' ? 'Activa' : 'Inactiva' }}</td>
+          <td><a [routerLink]="['/empresas', e.id]">Ver detalle</a></td></tr>
+      } @empty { <tr><td colspan="5">No hay empresas para mostrar.</td></tr> }</tbody></table></div>
+  } @else if (vista() === 'detalle' && empresa()) {
+    <section class="card"><dl>@for (c of campos; track c.key) { <div><dt>{{ c.label }}</dt><dd>{{ empresa()[c.key] || '—' }}</dd></div> }
+      <div><dt>Oficina</dt><dd>{{ empresa().office_id }}</dd></div><div><dt>Estado</dt><dd>{{ empresa().status === 'active' ? 'Activa' : 'Inactiva' }}</dd></div></dl>
+      @if (empresa().status === 'inactive') { <p>Empresa inactiva. Puede consultar trabajadores, liquidaciones y PDFs históricos. No admite nuevos trabajadores ni liquidaciones.</p> }
+      <div class="actions">
+        <a [routerLink]="['/trabajadores']" [queryParams]="{companyId: id}">Trabajadores</a>
+        <a [routerLink]="['/liquidaciones']" [queryParams]="{companyId: id}">Liquidaciones e históricos</a>
+        @if (administrar()) {
+          <a [routerLink]="['/empresas', id, 'editar']">Editar</a>
+          <button type="button" [disabled]="guardando()" (click)="cambiarEstado()">{{ empresa().status === 'active' ? 'Inactivar' : 'Activar' }}</button>
+          @if (empresa().status === 'active') {
+            <a [routerLink]="['/trabajadores/nuevo']" [queryParams]="{companyId: id}">Nuevo trabajador</a>
+            <a [routerLink]="['/liquidaciones/nueva']" [queryParams]="{companyId: id}">Nueva liquidación</a>
+          }
+        }
+      </div></section>
+  } @else if (vista() === 'nueva' || vista() === 'editar') {
+    @if (!administrar()) { <p>Su acceso permite solo consultar empresas.</p> }
+    @else { <form #empresaForm="ngForm" (ngSubmit)="guardar()" class="card">
+      <div class="fields">@for (c of campos; track c.key) {
+        <label>{{ c.label }}{{ c.key === 'rut' || c.key === 'name' ? ' *' : '' }}
+          <input [name]="c.key" [(ngModel)]="form[c.key]" [type]="c.key === 'email' ? 'email' : c.key === 'phone' ? 'tel' : 'text'" [required]="c.key === 'rut' || c.key === 'name'" [maxlength]="c.max">
+        </label>
+      }
+      @if (master() && vista() === 'nueva') { <label>Oficina (ID) *<input name="office_id" type="number" min="1" step="1" required [(ngModel)]="form.office_id"></label> }</div>
+      <p>La empresa se crea activa y pertenece únicamente a Remuneraciones.</p>
+      <div class="actions"><button class="primary" type="submit" [disabled]="empresaForm.invalid || guardando()">{{ guardando() ? 'Guardando…' : 'Guardar' }}</button><a routerLink="/empresas">Cancelar</a></div>
+    </form> }
+  }
+</main>

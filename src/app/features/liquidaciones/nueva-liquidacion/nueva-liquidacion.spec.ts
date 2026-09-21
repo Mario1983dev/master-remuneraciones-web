@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { of, Subject, throwError } from 'rxjs';
 import { vi } from 'vitest';
 import { NuevaLiquidacion } from './nueva-liquidacion';
@@ -17,9 +17,82 @@ describe('Nueva Liquidaci\u00f3n con parámetros publicados', () => {
   function iniciar() {
     const f = TestBed.createComponent(NuevaLiquidacion); f.detectChanges();
     const c = f.componentInstance; c.empresaSeleccionada = '1'; c.trabajadorSeleccionado = '2'; c.anioSeleccionado = 2026; c.mesSeleccionado = 9; c.continuar();
-    c.reglaCesantiaCodigo = 'GENERAL';
     f.detectChanges(); return { f, c };
   }
+
+  it('Nueva Liquidaci?n usa solo empresas activas y bloquea guardado de consulta', () => {
+    servicio.getEmpresas.mockReturnValue(of({empresas:[{id:9,status:'inactive'},{id:10,status:'active'}],can_manage:false}));
+    const f=TestBed.createComponent(NuevaLiquidacion);f.detectChanges();const c=f.componentInstance;
+    expect(servicio.getEmpresas).toHaveBeenCalledWith(true);expect(c.empresas.map(e=>e.id)).toEqual([10]);
+    expect(c.empresaSeleccionada).toBe('10');expect(c.puedeGuardar).toBe(false);
+  });
+  it('resuelve al cargar la regla unica del contrato y todos los resultados sin seleccion manual', () => {
+    const p = publicado(); p.cesantia[0].regla_codigo = 'INDEFINIDO';
+    p.cesantia[0].trabajador_cic_pct = '0.6';
+    servicio.getParametrosPeriodo.mockReturnValue(of(p));
+    const { c, f } = iniciar();
+    expect(c.reglaCesantiaCodigo).toBe('INDEFINIDO');
+    expect(f.nativeElement.querySelector('#regla-cesantia')).toBeNull();
+    expect(f.nativeElement.textContent).toContain('Regla aplicada automáticamente: INDEFINIDO');
+    expect(c.cesantia('trabajador_cic_pct').monto).toBe(7200);
+    expect(c.baseTributable().monto).toBe(1010454);
+    expect(c.iusc().monto).toBe(0);
+    expect(c.calcularTotalDescuentos()).toBe(189546);
+    expect(c.calcularLiquidoEstimado()).toBe(1010454);
+    expect(c.calcularDescuentoAfp()).toBe(112346);
+    expect(c.calcularDescuentoSalud()).toBe(70000);
+    expect(p.cesantia[0].regla_codigo).toBe('INDEFINIDO');
+  });
+  it('normaliza el tipo de contrato e ignora reglas de otros contratos', () => {
+    const p = publicado();
+    p.cesantia.push({ ...p.cesantia[0], tipo_contrato: 'PLAZO_FIJO', regla_codigo: 'PLAZO_FIJO' });
+    servicio.getParametrosPeriodo.mockReturnValue(of(p));
+    servicio.getTrabajador.mockReturnValue(of({ trabajador: { ...ficha().trabajador, tipo_contrato: ' indefinido ' } }));
+    const { c } = iniciar();
+    expect(c.reglaCesantiaCodigo).toBe('GENERAL'); expect(c.requiereSeleccionCesantia).toBe(false);
+  });
+  it('varias reglas conservan el selector y actualizan resultados al elegir', async () => {
+    const p = publicado(); p.cesantia.push({ ...p.cesantia[0], regla_codigo: 'ESPECIAL', trabajador_cic_pct: '0.6' });
+    servicio.getParametrosPeriodo.mockReturnValue(of(p));
+    const { c, f } = iniciar();
+    expect(c.reglaCesantiaCodigo).toBe(''); expect(c.calcularTotalDescuentos()).toBeNull();
+    const selector = f.nativeElement.querySelector('#regla-cesantia') as HTMLSelectElement;
+    expect(selector).not.toBeNull();
+    await f.whenStable(); selector.value = 'ESPECIAL'; selector.dispatchEvent(new Event('change'));
+    await f.whenStable();
+    expect(c.reglaCesantiaCodigo).toBe('ESPECIAL');
+    expect(c.cesantia('trabajador_cic_pct').monto).toBe(7200);
+    expect(c.baseTributable().monto).toBe(1010454);
+    expect(c.iusc().monto).toBe(0); expect(c.calcularTotalDescuentos()).toBe(189546);
+    expect(c.calcularLiquidoEstimado()).toBe(1010454);
+    expect(f.nativeElement.querySelector('#regla-cesantia')).not.toBeNull();
+  });
+  it('una regla especial no deduce condiciones ausentes de la ficha', () => {
+    const p = publicado(); p.cesantia[0].regla_codigo = 'CESE_CIC_11_ANIOS';
+    servicio.getParametrosPeriodo.mockReturnValue(of(p));
+    const { c, f } = iniciar();
+    expect(c.reglaCesantiaCodigo).toBe(''); expect(c.calcularLiquidoEstimado()).toBeNull();
+    expect(f.nativeElement.querySelector('#regla-cesantia')).not.toBeNull();
+  });
+  it('sin regla coincidente o sin contrato conserva pendiente sin selector vacio', () => {
+    servicio.getTrabajador.mockReturnValue(of({ trabajador: { ...ficha().trabajador, tipo_contrato: '' } }));
+    const { c, f } = iniciar();
+    expect(c.reglaCesantiaCodigo).toBe(''); expect(c.calcularLiquidoEstimado()).toBeNull();
+    expect(f.nativeElement.querySelector('#regla-cesantia')).toBeNull();
+    expect(c.cesantia('trabajador_cic_pct').pendiente).toContain('Falta el tipo');
+    c.trabajador.tipo_contrato = 'PLAZO_FIJO';
+    expect(c.reglasContrato).toHaveLength(0);
+    expect(c.cesantia('trabajador_cic_pct').pendiente).toContain('No hay reglas');
+  });
+  it('cambiar periodo descarta la seleccion anterior y resuelve con las nuevas reglas', () => {
+    const { c } = iniciar(); expect(c.reglaCesantiaCodigo).toBe('GENERAL');
+    c.mesSeleccionado = 10; c.cambiarTrabajador(); expect(c.reglaCesantiaCodigo).toBe('');
+    const p = publicado(); p.cesantia[0].regla_codigo = 'ESPECIAL';
+    servicio.getParametrosPeriodo.mockReturnValue(of(p)); c.continuar();
+    expect(c.reglaCesantiaCodigo).toBe(''); expect(c.requiereSeleccionCesantia).toBe(true);
+    c.cambiarTrabajador(); servicio.getParametrosPeriodo.mockReturnValue(of(publicado())); c.continuar();
+    expect(c.reglaCesantiaCodigo).toBe('GENERAL');
+  });
   it('usa el período exacto, conserva versión y calcula conceptos con tope y seis decimales', () => {
     const { c, f } = iniciar();
     expect(servicio.getParametrosPeriodo).toHaveBeenCalledWith(2026, 9);
@@ -121,5 +194,56 @@ describe('Nueva Liquidaci\u00f3n con parámetros publicados', () => {
     c.liquidacion.salud_tipo = 'ISAPRE'; c.liquidacion.salud_tipo_valor = 'PESOS'; c.liquidacion.salud_valor = 80000;
     expect(c.calcularDescuentoSalud()).toBe(80000);
     expect(c.baseTributable().monto).toBe(500000 - c.calcularDescuentoAfp()! - 70000);
+  });
+});
+
+
+describe('Guardado mensual', () => {
+  let servicio: any;
+  let respuesta: Subject<any>;
+  beforeEach(() => {
+    respuesta = new Subject();
+    servicio = {
+      getEmpresas: vi.fn(() => of({ empresas: [{ id: 1, status: 'active' }], can_manage: true })), getTrabajadores: vi.fn(() => of([{ id: 2 }])),
+      getTrabajador: vi.fn(() => of({ trabajador: { ...ficha().trabajador, id: 2, company_id: 1 } })),
+      getParametrosPeriodo: vi.fn(() => of(publicado())), crearLiquidacion: vi.fn(() => respuesta)
+    };
+    TestBed.configureTestingModule({ imports: [NuevaLiquidacion], providers: [provideRouter([]), { provide: RemuneracionesService, useValue: servicio }] });
+  });
+  function preparar() {
+    const f = TestBed.createComponent(NuevaLiquidacion); f.detectChanges();
+    const c = f.componentInstance; c.trabajadorSeleccionado = '2'; c.anioSeleccionado = 2026; c.mesSeleccionado = 9;
+    c.continuar(); f.detectChanges();
+    return { c, f };
+  }
+  it('conserva entrada, version y resultados, evita doble envio y vuelve al periodo guardado', () => {
+    const { c, f } = preparar(); const navegar = vi.spyOn(TestBed.inject(Router), 'navigate').mockResolvedValue(true);
+    c.liquidacion.anticipos = 15000; c.liquidacion.prestamos = 20000;
+    expect(c.calcularTotalDescuentos()).toBe(217346);
+    expect(c.puedeGuardar).toBe(true); c.guardarLiquidacion(); c.guardarLiquidacion(); f.detectChanges();
+    expect(servicio.crearLiquidacion).toHaveBeenCalledTimes(1); expect(c.guardando).toBe(true);
+    expect(f.nativeElement.textContent).toContain('Guardando...');
+    expect(f.nativeElement.querySelector('fieldset').disabled).toBe(true);
+    const payload = servicio.crearLiquidacion.mock.calls[0][0];
+    expect(payload).toMatchObject({ empresa_id: 1, trabajador_id: 2, anio: 2026, mes: 9, parametros_version_id: 42,
+      parametros_version: 3, afp_codigo: 'A', datos: { anticipos: 15000, prestamos: 20000 },
+      resultados: { pension_obligatoria: 100000, comision_afp: 12346, total_descuentos: 217346 } });
+    c.liquidacion.bonos = 999; expect(payload.datos.bonos).toBe(0);
+    respuesta.next({ id: 8 }); respuesta.complete();
+    expect(navegar).toHaveBeenCalledWith(['/liquidaciones'], { queryParams: { companyId: 1, anio: 2026, mes: 9 } });
+    c.guardarLiquidacion(); expect(servicio.crearLiquidacion).toHaveBeenCalledTimes(1);
+  });
+  it('bloquea resultados pendientes, periodo cambiado y trabajador ajeno', () => {
+    const { c } = preparar(); c.afpCodigo = ''; c.guardarLiquidacion(); expect(c.puedeGuardar).toBe(false);
+    c.afpCodigo = 'A'; c.mesSeleccionado = 10; c.guardarLiquidacion();
+    c.mesSeleccionado = 9; c.trabajador.company_id = 3; c.guardarLiquidacion();
+    expect(servicio.crearLiquidacion).not.toHaveBeenCalled();
+  });
+  it('muestra error del servidor, libera el bloqueo y permite reintentar', () => {
+    const { c } = preparar(); c.guardarLiquidacion();
+    respuesta.error({ error: { message: 'Ya existe una liquidación para este período.' } });
+    expect(c.guardando).toBe(false); expect(c.guardada).toBe(false); expect(c.errorMessage).toContain('Ya existe');
+    servicio.crearLiquidacion.mockReturnValue(new Subject()); c.guardarLiquidacion();
+    expect(servicio.crearLiquidacion).toHaveBeenCalledTimes(2);
   });
 });
